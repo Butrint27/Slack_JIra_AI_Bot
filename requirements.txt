@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+slack-bolt
+requests
+ollama
+psycopg2-binary
+sqlalchemy
+pydantic-settings
+python-dotenv

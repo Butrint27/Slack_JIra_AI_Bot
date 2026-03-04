@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  # 1. The Database
+  db:
+    image: postgres:15-alpine
+    container_name: jira_bot_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  # 2. The AI Engine (Ollama)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama_service
+    restart: always
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_storage:/root/.ollama
+
+  # 3. Model Puller (Ensures tinyllama is ready)
+  ollama-puller:
+    image: curlimages/curl:latest
+    container_name: ollama_puller
+    depends_on:
+      - ollama
+    entrypoint: [ "/bin/sh", "-c" ]
+    command: >
+      "sleep 5;
+      curl -X POST http://ollama:11434/api/pull -d '{\"name\": \"tinyllama\"}';"
+
+  # 4. Your FastAPI Bot
+  bot:
+    build: .
+    container_name: jira_slack_bot
+    depends_on:
+      db:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    # This keeps the container running and allows you to see logs
+    stdin_open: true
+    tty: true
+
+volumes:
+  postgres_data:
+  ollama_storage:
