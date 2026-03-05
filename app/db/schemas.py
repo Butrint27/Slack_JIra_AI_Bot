@@ -1,4 +1,12 @@
 from pydantic import BaseModel, ConfigDict
+from typing import List, Optional
+
+class ExtractedTicket(BaseModel):
+    title: str
+    description: str
+    issue_type: str
+    priority: str
+    labels: List[str]
 
 class JiraTicketSchema(BaseModel):
     slack_user_id: str

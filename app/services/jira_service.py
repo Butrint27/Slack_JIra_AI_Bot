@@ -1,5 +1,4 @@
 import os
-import json
 import requests
 from requests.auth import HTTPBasicAuth
 
@@ -26,5 +25,9 @@ class JiraService:
         }
         res = requests.post(endpoint, json=payload, headers=self.headers, auth=self.auth)
         return res.json() if res.status_code == 201 else None
+
+    def get_issue(self, issue_key):
+        res = requests.get(f"{self.url}/rest/api/3/issue/{issue_key}", headers=self.headers, auth=self.auth)
+        return res.json() if res.status_code == 200 else None
 
 jira_service = JiraService()

@@ -1,58 +1,76 @@
 import os
+import threading
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 from .ai_service import ai_service
 from .jira_service import jira_service
 from ..db.session import SessionLocal
-from ..db.models import JiraTicket
+from ..db.models import JiraTicket, BotConfig
 
 app = App(token=os.getenv("SLACK_BOT_TOKEN"))
-JIRA_PROJECT = os.getenv("JIRA_PROJECT_KEY", "ENG")
-JIRA_INSTANCE_URL = os.getenv("JIRA_INSTANCE_URL")
+
+def background_jira_logic(command, respond):
+    """Heavy lifting happens here so Slack doesn't timeout"""
+    try:
+        text = command["text"]
+        user = command["user_id"]
+        team_id = command["team_id"]
+
+        with SessionLocal() as db:
+            config = db.query(BotConfig).filter(BotConfig.slack_team_id == team_id).first()
+            project = config.jira_project_key if config else os.getenv("JIRA_PROJECT_KEY", "ENG")
+
+        ticket = ai_service.process_message(text)
+        issue = jira_service.create_issue(project, ticket)
+
+        if issue:
+            with SessionLocal() as db:
+                db.add(JiraTicket(slack_user_id=user, jira_issue_key=issue["key"], raw_text=text, ai_summary=ticket.title, status="created"))
+                db.commit()
+
+            respond(
+                f"✅ *Jira ticket created successfully*\n\n"
+                f"*Key:* {issue['key']}\n"
+                f"*Title:* {ticket.title}\n"
+                f"*Priority:* {ticket.priority}\n"
+                f"*Link:* {os.getenv('JIRA_INSTANCE_URL')}/browse/{issue['key']}"
+            )
+        else:
+            respond("❌ *Jira failed. Check your API settings.*")
+    except Exception as e:
+        respond(f"⚠️ *Error:* {str(e)}")
 
 @app.command("/jira")
 def handle_jira(ack, command, respond):
-    ack()
-    text = command["text"]
-    user = command["user_id"]
-    
+    ack() # TELL SLACK 'GOT IT' INSTANTLY
     respond("🤖 *AI is analyzing your request...*")
+    threading.Thread(target=background_jira_logic, args=(command, respond)).start()
 
-    # 1. AI Extracts relevant fields [cite: 6, 22]
-    ticket = ai_service.process_message(text)
-    
-    # 2. Create Jira ticket [cite: 7, 30]
-    issue = jira_service.create_issue(JIRA_PROJECT, ticket)
+@app.command("/jira-config")
+def handle_config(ack, command, respond):
+    ack()
+    args = command["text"].split()
+    if len(args) < 2 or args[0] != "project":
+        respond("Usage: `/jira-config project <KEY>`")
+        return
+    with SessionLocal() as db:
+        config = db.query(BotConfig).filter(BotConfig.slack_team_id == command["team_id"]).first()
+        if not config:
+            config = BotConfig(slack_team_id=command["team_id"]); db.add(config)
+        config.jira_project_key = args[1].upper()
+        db.commit()
+    respond(f"⚙️ Project set to `{args[1].upper()}`")
 
+@app.command("/jira-status")
+def handle_status(ack, command, respond):
+    ack()
+    issue_key = command["text"].strip().upper()
+    issue = jira_service.get_issue(issue_key)
     if issue:
-        # Save to Database [cite: 73]
-        with SessionLocal() as db:
-            db_ticket = JiraTicket(
-                slack_user_id=user,
-                jira_issue_key=issue["key"],
-                raw_text=text,
-                ai_summary=ticket.title,
-                status="created"
-            )
-            db.add(db_ticket)
-            db.commit()
-
-        # 3. Respond with the specific format required by the PDF [cite: 40, 41, 42, 45]
-        issue_key = issue["key"]
-        issue_link = f"{JIRA_INSTANCE_URL}/browse/{issue_key}"
-        
-        confirmation_text = (
-            f"✅ *Jira ticket created successfully*\n\n"
-            f"*Key:* {issue_key}\n"
-            f"*Title:* {ticket.title}\n"
-            f"*Priority:* {ticket.priority}\n"
-            f"*Link:* {issue_link}"
-        )
-        respond(confirmation_text)
+        status = issue['fields']['status']['name']
+        respond(f"📊 *Status for {issue_key}:* `{status}`")
     else:
-        respond("❌ *Failed to create Jira issue. Please check logs.*")
+        respond(f"❌ Ticket `{issue_key}` not found.")
 
 def start_slack_bot():
-    handler = SocketModeHandler(app, os.getenv("SLACK_APP_TOKEN"))
-    print("⚡ Slack bot is running and listening for /jira commands")
-    handler.start()
+    SocketModeHandler(app, os.getenv("SLACK_APP_TOKEN")).start()
