@@ -1,7 +1,6 @@
-version: "3.8"
+version: "3.9"
 
 services:
-
   db:
     image: postgres:15-alpine
     restart: always
@@ -10,26 +9,33 @@ services:
       POSTGRES_PASSWORD: bajrami27
       POSTGRES_DB: slackbot_db
     ports:
-      - "5433:5432"
+      - "5433:5432" # Host 5433 maps to Container 5432
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d slackbot_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   ollama:
     image: ollama/ollama
+    restart: always
     ports:
-      - "11435:11434"
+      - "11435:11434" # Host 11435 maps to Container 11434
     volumes:
       - ollama_storage:/root/.ollama
 
   bot:
     build: .
     depends_on:
-      - db
-      - ollama
+      db:
+        condition: service_healthy
     env_file:
       - .env
     ports:
       - "8000:8000"
+    restart: on-failure
 
 volumes:
   postgres_data:

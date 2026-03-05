@@ -1,36 +1,17 @@
 import threading
 from fastapi import FastAPI
-
-from .db.session import engine
 from .db import models
 from .services.slack_service import start_slack_bot
+from .db.session import engine, wait_for_db
 
-
-models.Base.metadata.create_all(bind=engine)
-
-app = FastAPI(title="Jira AI Bot")
-
+app = FastAPI()
 
 @app.on_event("startup")
 def startup():
-
-    thread = threading.Thread(
-        target=start_slack_bot,
-        daemon=True
-    )
-
-    thread.start()
-
-    print("Slack bot thread started")
-
-
-@app.get("/")
-def root():
-
-    return {"status": "running"}
-
+    if wait_for_db():
+        models.Base.metadata.create_all(bind=engine)
+        threading.Thread(target=start_slack_bot, daemon=True).start()
+        print("🚀 Systems Online: FastAPI + Slack Bot")
 
 @app.get("/health")
-def health():
-
-    return {"status": "healthy"}
+def health(): return {"status": "ok"}
