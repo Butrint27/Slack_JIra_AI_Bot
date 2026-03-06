@@ -23,10 +23,3 @@ def wait_for_db():
             print(f"Retrying database connection {i+1}/10...")
             time.sleep(2)
     return False
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()

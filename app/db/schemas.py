@@ -7,6 +7,8 @@ class ExtractedTicket(BaseModel):
     issue_type: str
     priority: str
     labels: List[str]
+    components: List[str]
+    acceptance_criteria: str
 
 class JiraTicketSchema(BaseModel):
     slack_user_id: str
