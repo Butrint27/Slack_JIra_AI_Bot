@@ -1,7 +1,10 @@
 import os
 import json
 import requests
+from datetime import datetime, timedelta
 from ..db.schemas import ExtractedTicket
+from ..db.models import JiraTicket
+from ..db.session import SessionLocal
 
 class AIService:
     def __init__(self):
@@ -9,7 +12,6 @@ class AIService:
         self.model = os.getenv("OLLAMA_MODEL")
 
     def process_message(self, text: str) -> ExtractedTicket:
-        # The prompt is now explicitly mapped to the 7 fields in the PDF
         prompt = (
             f"Context: You are a Jira AI assistant. Task: Extract these 7 fields from: '{text}'\n"
             f"1. title: Professional summary (5-8 words)\n"
@@ -25,15 +27,23 @@ class AIService:
             resp = requests.post(self.url, json={
                 "model": self.model, "prompt": prompt, "stream": False, "format": "json"
             }, timeout=45)
-            
             data = json.loads(resp.json()["response"])
             return ExtractedTicket(**data)
-        except Exception as e:
-            # Fallback that still respects the 7-field schema
+        except Exception:
             return ExtractedTicket(
                 title=text[:50], description=text, issue_type="Task", 
                 priority="Medium", labels=["ai-fallback"], components=[], 
                 acceptance_criteria="Manual review required."
             )
+
+    def check_for_duplicate(self, title: str):
+        """Checks if a ticket with a similar title exists in Postgres from the last 24h."""
+        with SessionLocal() as db:
+            yesterday = datetime.utcnow() - timedelta(days=1)
+            # Fuzzy match on the first 15 characters of the title
+            return db.query(JiraTicket).filter(
+                JiraTicket.ai_summary.ilike(f"%{title[:15]}%"),
+                JiraTicket.created_at >= yesterday
+            ).first()
 
 ai_service = AIService()
