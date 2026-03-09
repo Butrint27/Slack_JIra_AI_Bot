@@ -66,6 +66,7 @@ def handle_confirm_create(ack, body, respond):
     ack()
     data = json.loads(body["actions"][0]["value"])
     
+    # Create the object JiraService expects
     ticket_obj = SimpleNamespace(
         title=data["title"], 
         description=data["desc"],
@@ -83,6 +84,7 @@ def handle_confirm_create(ack, body, respond):
     issue = jira_service.create_issue(project, ticket_obj)
     
     if issue:
+        # Save to database
         with SessionLocal() as db:
             db.add(JiraTicket(
                 slack_user_id=body["user"]["id"], 
@@ -92,7 +94,18 @@ def handle_confirm_create(ack, body, respond):
                 status="created"
             ))
             db.commit()
-        respond(f"✅ *Ticket {issue['key']} created!*\nLink: {os.getenv('JIRA_INSTANCE_URL')}/browse/{issue['key']}", replace_original=True)
+
+        # Build the exact message design you requested
+        instance_url = os.getenv("JIRA_INSTANCE_URL").rstrip('/')
+        message_text = (
+            "✅ *Jira ticket created successfully*\n"
+            f"*Key:* {issue['key']}\n"
+            f"*Title:* {data['title']}\n"
+            f"*Priority:* {data['priority']}\n"
+            f"*Link:* {instance_url}/browse/{issue['key']}"
+        )
+        
+        respond(message_text, replace_original=True)
     else:
         respond("❌ Failed to create ticket in Jira. Check API logs.", replace_original=True)
 
