@@ -11,38 +11,54 @@ from types import SimpleNamespace
 
 app = App(token=os.getenv("SLACK_BOT_TOKEN"))
 
-# --- 1. CORE CREATION LOGIC ---
+# --- 1. CORE GENERATION & CREATION LOGIC ---
 
 def background_jira_logic(command, respond):
     try:
-        text = command["text"]
-        ticket = ai_service.process_message(text)
+        title_text = command["text"]
+        if not title_text:
+            respond("⚠️ Please provide a title. Usage: `/jira [Ticket Title]`")
+            return
+
+        # Let AI expand the title into a full ticket
+        ticket = ai_service.generate_full_ticket(title_text)
+        
         duplicate = ai_service.check_for_duplicate(ticket.title)
         warning = f"⚠️ *Duplicate Alert ({duplicate.jira_issue_key})*\n" if duplicate else ""
         
-        # Store all extracted data in the button value for the confirm step
+        # Package the generated data for the confirmation button
         ticket_data = json.dumps({
-            "title": ticket.title, "desc": ticket.description, 
-            "priority": ticket.priority, "type": ticket.issue_type, 
-            "ac": ticket.acceptance_criteria, "raw": text
+            "title": ticket.title, 
+            "desc": ticket.description, 
+            "priority": ticket.priority, 
+            "type": ticket.issue_type, 
+            "ac": ticket.acceptance_criteria,
+            "labels": ticket.labels
         })
         
+        # Enhanced preview blocks for generated content
         respond({
             "blocks": [
-                {"type": "section", "text": {"type": "mrkdwn", "text": f"{warning}🤖 *AI Proposal*\n*Title:* {ticket.title}\n*Priority:* {ticket.priority}"}},
+                {"type": "header", "text": {"type": "plain_text", "text": "🪄 AI Ticket Expansion"}},
+                {"type": "section", "text": {"type": "mrkdwn", "text": f"{warning}*Proposed Title:* {ticket.title}"}},
+                {"type": "section", "text": {"type": "mrkdwn", "text": f"*AI Description:*\n{ticket.description}"}},
+                {"type": "section", "text": {"type": "mrkdwn", "text": f"*Acceptance Criteria:*\n{ticket.acceptance_criteria}"}},
+                {"type": "context", "elements": [
+                    {"type": "mrkdwn", "text": f"⚡ *Priority:* {ticket.priority}  |  🏷️ *Type:* {ticket.issue_type}"}
+                ]},
                 {"type": "actions", "elements": [
-                    {"type": "button", "text": {"type": "plain_text", "text": "✅ Create"}, "style": "primary", "value": ticket_data, "action_id": "confirm_create_action"},
-                    {"type": "button", "text": {"type": "plain_text", "text": "🗑️ Cancel"}, "style": "danger", "action_id": "cancel_action"}
+                    {"type": "button", "text": {"type": "plain_text", "text": "✅ Create Ticket"}, "style": "primary", "value": ticket_data, "action_id": "confirm_create_action"},
+                    {"type": "button", "text": {"type": "plain_text", "text": "🗑️ Discard"}, "style": "danger", "action_id": "cancel_action"}
                 ]}
             ]
         })
     except Exception as e:
-        respond(f"❌ *Analysis Error:* {str(e)}")
+        respond(f"❌ *AI Generation Error:* {str(e)}")
 
 @app.command("/jira")
 def handle_jira(ack, command, respond):
     ack()
-    respond("🤖 Analyzing your request...")
+    respond("🤖 Thinking... Generating technical details with Ollama...")
     threading.Thread(target=background_jira_logic, args=(command, respond)).start()
 
 @app.action("confirm_create_action")
@@ -50,11 +66,14 @@ def handle_confirm_create(ack, body, respond):
     ack()
     data = json.loads(body["actions"][0]["value"])
     
-    # Create the object JiraService expects
     ticket_obj = SimpleNamespace(
-        title=data["title"], description=data["desc"],
-        issue_type=data["type"], priority=data["priority"],
-        acceptance_criteria=data["ac"]
+        title=data["title"], 
+        description=data["desc"],
+        issue_type=data["type"], 
+        priority=data["priority"],
+        acceptance_criteria=data["ac"],
+        labels=data.get("labels", []),
+        components=[]
     )
 
     with SessionLocal() as db:
@@ -66,13 +85,16 @@ def handle_confirm_create(ack, body, respond):
     if issue:
         with SessionLocal() as db:
             db.add(JiraTicket(
-                slack_user_id=body["user"]["id"], jira_issue_key=issue["key"],
-                raw_text=data["raw"], ai_summary=data["title"], status="created"
+                slack_user_id=body["user"]["id"], 
+                jira_issue_key=issue["key"],
+                raw_text=data["title"], 
+                ai_summary=data["title"], 
+                status="created"
             ))
             db.commit()
         respond(f"✅ *Ticket {issue['key']} created!*\nLink: {os.getenv('JIRA_INSTANCE_URL')}/browse/{issue['key']}", replace_original=True)
     else:
-        respond("❌ Failed to create ticket in Jira.", replace_original=True)
+        respond("❌ Failed to create ticket in Jira. Check API logs.", replace_original=True)
 
 # --- 2. STATUS & UPDATE LOGIC ---
 
@@ -104,7 +126,7 @@ def handle_update(ack, command, respond):
     if jira_service.update_issue(key, {"priority": {"name": new_priority}}):
         respond(f"✅ Priority for *{key}* updated to *{new_priority}*.")
     else:
-        respond(f"❌ Failed to update *{key}*. Check valid Jira priorities.")
+        respond(f"❌ Failed to update *{key}*.")
 
 # --- 3. MOVE & DELETE LOGIC ---
 
@@ -122,7 +144,7 @@ def handle_move(ack, command, respond):
         respond(f"🚀 *{key}* moved to *{status_input.title()}*")
     else:
         avail = ", ".join([f"`{t['name']}`" for t in transitions])
-        respond(f"❌ Move failed. Available: {avail}")
+        respond(f"❌ Move failed. Available moves: {avail}")
 
 @app.command("/jira-delete")
 def handle_delete_command(ack, command, respond):
@@ -147,12 +169,12 @@ def handle_confirm_delete(ack, body, respond):
     if jira_service.delete_issue(key):
         respond(f"🗑️ *{key}* deleted permanently.", replace_original=True)
     else:
-        respond(f"❌ Failed to delete *{key}*. Check permissions.", replace_original=True)
+        respond(f"❌ Failed to delete *{key}*. (Permission Denied).", replace_original=True)
 
 @app.action("cancel_action")
 def handle_cancel(ack, respond):
     ack()
-    respond("Action cancelled.", replace_original=True)
+    respond("🗑️ Action cancelled/proposal discarded.", replace_original=True)
 
 def start_slack_bot():
     SocketModeHandler(app, os.getenv("SLACK_APP_TOKEN")).start()
