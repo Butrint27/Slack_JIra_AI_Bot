@@ -37,10 +37,8 @@ class AIService:
             )
 
     def check_for_duplicate(self, title: str):
-        """Checks if a ticket with a similar title exists in Postgres from the last 24h."""
         with SessionLocal() as db:
             yesterday = datetime.utcnow() - timedelta(days=1)
-            # Fuzzy match on the first 15 characters of the title
             return db.query(JiraTicket).filter(
                 JiraTicket.ai_summary.ilike(f"%{title[:15]}%"),
                 JiraTicket.created_at >= yesterday
