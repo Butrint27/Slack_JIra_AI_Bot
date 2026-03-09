@@ -1,8 +1,10 @@
 🤖 Jira Slack Bot
+________________________________________________________________________________________________
 
 This project is a Slack bot that integrates with Jira to manage tasks, bugs, stories, and epics. It allows users to create and manage tickets directly from Slack.
 
 💬 Sample Slack Conversation
+________________________________________________________________________________________________
 
 The following is an example of how to use the AI Bot to create a jira ticket using Slack:
 
@@ -15,6 +17,7 @@ Priority: Medium
 Link: https://butrintbajrami8.atlassian.net/browse/ENG-25
 
 🚀 Features
+________________________________________________________________________________________________
 
 The bot supports the following commands:
   1. /jira <title> - Create a new jira ticket from Slack
@@ -22,15 +25,18 @@ The bot supports the following commands:
   3. /jira-config project <title> - Admin only can change the project key 
 
 🏁 Getting Started
+________________________________________________________________________________________________
 
 These instructions will get you a copy of the project up and running on your local machine for development and testing purposes
 
 📋 Prerequisites
+________________________________________________________________________________________________
 
   1. Python3
   2. pip
 
 🔧 Installing
+________________________________________________________________________________________________
 
   1. Clone the repository
   2. Install the dependecies with pip:
@@ -44,6 +50,7 @@ These instructions will get you a copy of the project up and running on your loc
   docker-compose up --build -d
 
 🛠️ Built With
+________________________________________________________________________________________________
 
   1. Python3
   2. FastAPI
@@ -51,6 +58,7 @@ These instructions will get you a copy of the project up and running on your loc
   4. Atlassian REST API v3
 
 🤝 Integrating with Slack
+________________________________________________________________________________________________
 
 🤖 Creating a Slack Bot
 
@@ -64,6 +72,7 @@ To create a Slack bot, follow these steps:
   6. You might have to add the 'xapp' token for the 'SLACK_APP_TOKEN' just make sure you place it on a normal notepad to save it 
 
 📚 Project Structure
+________________________________________________________________________________________________
 
 Use the 'app' folder where it will go all the work where there will be inlcuded these folders 'db', 'services' and there will be the 'main.py'
 
@@ -74,6 +83,7 @@ In the 'services' folder there will be classes such as 'ai_service.py', 'jira_se
 Outside of the 'app' folder there are neccesary files such as '.gitattributes', '.gitignore', 'docker-compose.yml', 'Dockerfile', 'requirements.txt' and 'README.md'
 
 ⚙️ Configuration
+________________________________________________________________________________________________
 
 This project uses a .env file for configuration. This file should be located at the root of the project and should not be checked into version control. It is used to store sensitive information such as API keys, database credentials, and other environment-specific settings.
 
