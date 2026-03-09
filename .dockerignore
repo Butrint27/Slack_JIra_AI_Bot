@@ -1,0 +1,36 @@
+# --- Secrets and Environment ---
+.env
+*.env
+# Exclude your compose file so it's not baked into the image
+docker-compose.yml
+docker-compose.override.yml
+
+# --- Git ---
+.git
+.gitignore
+
+# --- Python / Backend ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# --- Logs and Databases ---
+*.log
+*.sqlite
+*.db
+
+# --- Docker ---
+Dockerfile
+.dockerignore
+
+# --- OS / Misc ---
+.DS_Store
+.idea/
+.vscode/
