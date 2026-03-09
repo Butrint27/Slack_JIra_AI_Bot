@@ -69,7 +69,7 @@ To create a Slack bot, follow these steps:
   3. Go to the "Slash Commands" in order to prepare the commands need it such as '/jira', '/jira-config', '/jira-status'
   4. In the "OAuth & Permissions" you need to add the scopes first such as 'chat:write', 'commands', 'files:read', 'team:read', 'users:read' once you do that install the workspace and copy the 'xoxb' token which is 'SLACK_BOT_TOKEN' you might gona have to save it on a .env for better code
   5. For this project you dont need a tool such as ngrok but instead you can use Slack Websocket which you can find in the left pannel 'Socket Mode' simply enable it for a easy communication
-  6. You might have to add the 'xapp' token for the 'SLACK_APP_TOKEN' just make sure you place it on a normal notepad to save it 
+  6. You might have to add the 'xapp' token for the 'SLACK_APP_TOKEN' just make sure you place it on a normal notepad to save it the location of this one is on the 'Socket Token (Slack-Socket Mode)'
 
 📚 Project Structure
 ________________________________________________________________________________________________
