@@ -179,10 +179,33 @@ def handle_delete_command(ack, command, respond):
 def handle_confirm_delete(ack, body, respond):
     ack()
     key = body["actions"][0]["value"]
-    if jira_service.delete_issue(key):
-        respond(f"🗑️ *{key}* deleted permanently.", replace_original=True)
+    clicking_user = body["user"]["id"]
+    
+    # 🔐 Your Verified Slack ID
+    ADMIN_IDS = ["U0AJL3GCM8C"] 
+
+    with SessionLocal() as db:
+        ticket = db.query(JiraTicket).filter(JiraTicket.jira_issue_key == key).first()
+        # Fallback: if the ticket isn't in our DB, only an Admin can delete it
+        creator_id = ticket.slack_user_id if ticket else None
+
+    # Logic: Admin OR the original creator
+    if clicking_user in ADMIN_IDS or clicking_user == creator_id:
+        if jira_service.delete_issue(key):
+            # Success! Let's update the message to be clear
+            respond(f"🗑️ *Confirmed:* Ticket `{key}` has been permanently removed from the board.", replace_original=True)
+            
+            # Optional: Log the deletion in your database status
+            if ticket:
+                with SessionLocal() as db_session:
+                    db_ticket = db_session.query(JiraTicket).filter(JiraTicket.jira_issue_key == key).first()
+                    db_ticket.status = "deleted"
+                    db_session.commit()
+        else:
+            respond(f"❌ Jira successfully received the request but couldn't find `{key}`. It might be gone already.", replace_original=True)
     else:
-        respond(f"❌ Failed to delete *{key}*. (Permission Denied).", replace_original=True)
+        # The 'Gatekeeper' message
+        respond(f"🚫 *Access Denied:* You don't have permission to delete `{key}`. Please ask <@{ADMIN_IDS[0]}> for help.", ephemeral=True)
 
 @app.action("cancel_action")
 def handle_cancel(ack, respond):
