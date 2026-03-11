@@ -1,12 +1,12 @@
-import os
+# tests/test_jira_ticket.py
+import pytest
 from types import SimpleNamespace
-from app.services.jira_service import jira_service
+from unittest.mock import patch
+from app.services.jira_service import jira_service  # import the instance
 
-
-def test_create_jira_ticket():
-    project = os.getenv("JIRA_PROJECT_KEY", "ENG")
-
-    ticket = SimpleNamespace(
+@pytest.fixture
+def sample_ticket():
+    return SimpleNamespace(
         title="Testing pytest ticket",
         description="This ticket was automatically created by pytest.",
         issue_type="Task",
@@ -16,9 +16,40 @@ def test_create_jira_ticket():
         components=[]
     )
 
-    issue = jira_service.create_issue(project, ticket)
+def test_create_jira_ticket_success(sample_ticket):
+    project = "ENG"
+    mock_issue = {"key": "ENG-123"}
 
-    assert issue is not None
-    assert "key" in issue
+    # Patch the 'create_issue' method of the JiraService instance
+    with patch("app.services.jira_service.jira_service.create_issue", return_value=mock_issue) as mock_create:
+        issue = jira_service.create_issue(project, sample_ticket)
 
-    print(f"Jira ticket created: {issue['key']}")
+        mock_create.assert_called_once_with(project, sample_ticket)
+        assert issue is not None
+        assert issue["key"] == "ENG-123"
+
+def test_create_jira_ticket_failure(sample_ticket):
+    project = "ENG"
+
+    with patch("app.services.jira_service.jira_service.create_issue", side_effect=Exception("Jira API error")) as mock_create:
+        with pytest.raises(Exception) as exc:
+            jira_service.create_issue(project, sample_ticket)
+
+        mock_create.assert_called_once_with(project, sample_ticket)
+        assert "Jira API error" in str(exc.value)
+
+def test_create_jira_ticket_missing_fields():
+    project = "ENG"
+    incomplete_ticket = SimpleNamespace(
+        title="", description="", issue_type="", priority="", acceptance_criteria="",
+        labels=[], components=[]
+    )
+    mock_issue = {"key": "ENG-999"}
+
+    with patch("app.services.jira_service.jira_service.create_issue", return_value=mock_issue) as mock_create:
+        issue = jira_service.create_issue(project, incomplete_ticket)
+
+        mock_create.assert_called_once_with(project, incomplete_ticket)
+        assert issue["key"] == "ENG-999"
+    
+   
