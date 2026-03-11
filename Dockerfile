@@ -9,4 +9,4 @@ COPY . .
 
 ENV PYTHONPATH=/app
 
-CMD sh -c "pytest app/tests && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+CMD ["sh", "-c", "echo 'Running tests...' && pytest app/tests -v && echo 'Starting API...' && uvicorn app.main:app --host 0.0.0.0 --port 8000"]

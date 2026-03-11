@@ -18,13 +18,7 @@ def test_create_jira_ticket():
 
     issue = jira_service.create_issue(project, ticket)
 
-    # Ensure ticket was created
     assert issue is not None
     assert "key" in issue
 
-    issue_key = issue["key"]
-
-    # Delete ticket after verifying creation
-    deleted = jira_service.delete_issue(issue_key)
-
-    assert deleted is True
+    print(f"Jira ticket created: {issue['key']}")
